@@ -14,6 +14,7 @@ const sequelize = new Sequelize({
 });
 
 class User extends Model {}
+class Address extends Model {}
 
 User.init(
   {
@@ -44,6 +45,33 @@ User.init(
   }
 );
 
+Address.init(
+  {
+    id: {
+      type: DataTypes.INTEGER,
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    name: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    address: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+  },
+  {
+    sequelize,
+    modelName: "address",
+  }
+);
+
+//User.hasMany(Address);
+//Address.belongsTo(User);
+Address.User = Address.belongsTo(User);
+User.Addresses = User.hasMany(Address);
+
 const testConnection = async () => {
   try {
     await sequelize.authenticate();
@@ -71,11 +99,26 @@ const insertUser = async (
   firstName,
   lastName = null,
   age = null,
-  type = "normal"
+  type = "normal",
+  addresses = []
 ) => {
-  const user = await User.create({ firstName, lastName, age, type });
+  const user = await User.create({
+    firstName,
+    lastName,
+    age,
+    type,
+    addresses
+  }, {
+    include: [User.Addresses]
+  });
   console.log(user.firstName, "was saved to the database!");
   return user.id;
+};
+
+const insertAddress = async (userId, name, address) => {
+  const user = await User.findByPk(userId);
+  const result = await user.createAddress({ name, address });
+  return result.id;
 };
 
 const getUserByFirstName = async (firstName) => {
@@ -84,8 +127,37 @@ const getUserByFirstName = async (firstName) => {
 };
 
 const getUserById = async (id) => {
-  const user = await User.findByPk(id);
-  return user;
+  return await User.findByPk(id, { include: Address });
+};
+
+const getUserFirstnames = async () => {
+  const result = await User.findAll({ attributes: ["firstName"] });
+  const names = result.map((user) => user.dataValues.firstName);
+  return names;
+};
+
+const serachUsers = async (where) => {
+  const result = await User.findAll({
+    where,
+  });
+  return result;
+};
+
+const getCountUser = async (where = {}) => {
+  return await User.count({ where });
+};
+
+const updateUser = async (user) => {
+  const result = await User.update(
+    {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      age: user.age,
+      type: user.type,
+    },
+    { where: { id: user.id } }
+  );
+  return result;
 };
 
 module.exports = {
@@ -95,5 +167,10 @@ module.exports = {
   insertUser,
   getUserById,
   getUserByFirstName,
+  getUserFirstnames,
+  serachUsers,
+  getCountUser,
+  updateUser,
+  insertAddress,
   User,
 };
